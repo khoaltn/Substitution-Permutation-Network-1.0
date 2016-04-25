@@ -2,7 +2,7 @@ I wrote this simple substitution-permutation network (SPN) as part of my Junior 
  
 Instructions: 
 In the terminal, go to the folder containing all the source code:
-- To compile the source code, type: $ g++ -std=c++11 -o SPN SPN.cpp testSPN.cpp
+- To compile the source code, type: $ g++ -o SPN SPN.cpp testSPN.cpp
 - To run the binary file, type:     $ ./SPN
 
 Follow the documentation and example usage in testSPN.cpp on how to use the SPN class. 
