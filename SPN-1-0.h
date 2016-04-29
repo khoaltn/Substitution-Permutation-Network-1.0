@@ -28,17 +28,17 @@ public:
 	~SPN();
 
 	// Encryption for a string input
-	unsigned char* encrypt(const string plaintext);
+	unsigned char* encrypt_ECB_mode(const unsigned char plaintext[], int len);
 
 	// Decryption for an array of ciphertext characters
-	string decrypt(const unsigned char ciphertext[], const int len);
+	unsigned char* decrypt_ECB_mode(const unsigned char ciphertext[], int len);
 
 	// print an unsigned char array as hexadecimal values
 	void printArray(const unsigned char in[], int len);
 
 	// Input processor: Turn string input into a 2D array of BLOCK_LEN substrings
-	void prepare_string_ECB_mode(const string input,
-						unsigned char in[][BLOCK_LEN], int numSubInput);
+	void prepare_string_ECB_mode(const unsigned char input[],
+						unsigned char in[][BLOCK_LEN], int len);
 
 private:
 	
@@ -63,6 +63,12 @@ private:
 
 	// Permutation matrix generator for pi_P()
 	void generate_permutation_matrix();
+
+	// Encrypt Algorithm
+	unsigned char* SPN_encrypt(const unsigned char in[BLOCK_LEN]);
+
+	// Decrypt Algorithm
+	unsigned char* SPN_decrypt(const unsigned char in[BLOCK_LEN]);
 };
 
 #endif

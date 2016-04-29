@@ -383,3 +383,67 @@ void SPN::printArray(const unsigned char in[], int len) {
 		cout << hex << (int) in[i] << " ";
 	}
 }
+
+// Encrypt Algorithm
+unsigned char* SPN::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
+	unsigned char* ciphertext = new unsigned char[BLOCK_LEN];
+	
+	// SPN MAIN ALGORITHM
+	unsigned char *XORed, *substituted, *permuted;
+	XORed = new unsigned char[BLOCK_LEN];
+	substituted = new unsigned char[BLOCK_LEN];
+	permuted = new unsigned char[BLOCK_LEN];
+
+	// copy subinput input[s] to permuted as pre-round
+	for (int i = 0; i < BLOCK_LEN; i++) {
+		permuted[i] = in[i];
+	}
+
+	// run through the encryption rounds
+	for (int r = 0; r < numRounds - 1; r++) {
+		// XOR result of last round with corresponding subkey of current round
+		cout << "XORed_" << r << ": ";
+		operation_XOR(permuted, XORed, r);
+		printArray(XORed, BLOCK_LEN);
+		cout << endl;
+
+		// Substitution Pi_S()
+		cout << "subs_" << r << ": ";
+		pi_S(XORed, substituted);
+		printArray(substituted, BLOCK_LEN);
+		cout << endl;
+			
+		// Permutation Pi_P()
+		cout << "perm_" << r << ": ";
+		pi_P(substituted, permuted, true); // bool encrypt for pi_P is true
+		printArray(permuted, BLOCK_LEN);
+		cout << endl;
+			
+		cout << "--------------------------------------------------" << endl;
+	}
+	// the last round does not permute the result, only XOR and pi_S()
+	cout << "XORed_" << numRounds - 1 << ": ";
+	operation_XOR(permuted, XORed, numRounds - 1);
+	printArray(XORed, BLOCK_LEN);
+	cout << endl;
+
+	cout << "subs_" << numRounds - 1 << ": ";
+	pi_S(XORed, substituted);
+	printArray(substituted, BLOCK_LEN);
+	cout << endl;
+
+	// Output whitening using the last subkey. Recall that we produce
+	// (numRounds + 1) subkeys. The first (numRounds) subkeys have been used.
+	cout << "Whitening: ";
+	operation_XOR(substituted, ciphertext, numRounds);
+	printArray(ciphertext, BLOCK_LEN);
+	cout << endl;
+	cout << "--------------------------------------------------" << endl;
+
+	// destroy intermediate step's materials
+	delete [] XORed;
+	delete [] substituted;
+	delete [] permuted;
+
+	return ciphertext;
+}

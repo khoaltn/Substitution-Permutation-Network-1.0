@@ -63,6 +63,12 @@ private:
 
 	// Permutation matrix generator for pi_P()
 	void generate_permutation_matrix();
+
+	// Encrypt Algorithm
+	unsigned char* SPN_encrypt(const unsigned char in[BLOCK_LEN]);
+
+	// Decrypt Algorithm
+	void SPN_decrypt(const unsigned char in[BLOCK_LEN]);
 };
 
 #endif
