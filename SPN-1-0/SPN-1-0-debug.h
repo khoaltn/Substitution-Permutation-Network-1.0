@@ -1,12 +1,12 @@
-/* SPN.h
+/* SPN-1-0-debug.h
  *
- * Header file of a simple substitution-permutation network.
+ * Header file of a simple substitution-permutation network. DEBUG version that dumps out intermediate values.
  *
  * Created by Khoa Nguyen on 03/16/2016.
  */
 
-#ifndef __SPN__
-#define __SPN__
+#ifndef __SPN-DEBUG__
+#define __SPN-DEBUG__
 
 #include <iostream>
 #include <string>
@@ -15,30 +15,32 @@ using namespace std;
 
 #define KEY_LEN 16
 #define KEY_RANGE 256
-#define BLOCK_LEN 8 // 8 bytes = 64 bits, the usual block length of modern block ciphers. 
+#define BLOCK_LEN 8 // 8 bytes = 64 bits, the usual block length of modern block ciphers.
+#define PERMUTATION_ENCRYPT_MODE true
+#define PERMUTATION_DECRYPT_MODE false
 
-class SPN {
+class SPN_Debug {
 
 public:
 
 	// Default constructor: Random key, min# of rounds = 4
-	SPN(int nr = 4);
+	SPN_Debug(int nr = 4);
 	
 	// Destructor
-	~SPN();
+	~SPN_Debug();
 
 	// Encryption for a string input
-	unsigned char* encrypt(const string plaintext);
+	unsigned char* encrypt_ECB_mode(const unsigned char plaintext[], int len);
 
 	// Decryption for an array of ciphertext characters
-	string decrypt(const unsigned char ciphertext[], const int len);
+	unsigned char* decrypt_ECB_mode(const unsigned char ciphertext[], int len);
 
 	// print an unsigned char array as hexadecimal values
 	void printArray(const unsigned char in[], int len);
 
-	// Input processor: Turn string input into a 2D array of BLOCK_LEN substrings
-	void prepare_string_ECB_mode(const string input,
-						unsigned char in[][BLOCK_LEN], int numSubInput);
+	// Input processor: Turn string input into a 2D array of BLOCK_LEN substrings
+	void prepare_string_ECB_mode(const unsigned char input[],
+						unsigned char in[][BLOCK_LEN], int len);
 
 private:
 	
@@ -68,7 +70,7 @@ private:
 	unsigned char* SPN_encrypt(const unsigned char in[BLOCK_LEN]);
 
 	// Decrypt Algorithm
-	void SPN_decrypt(const unsigned char in[BLOCK_LEN]);
+	unsigned char* SPN_decrypt(const unsigned char in[BLOCK_LEN]);
 };
 
 #endif

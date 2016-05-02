@@ -5,7 +5,8 @@
  * Created by Khoa Nguyen on 03/16/2016.
  */
 
-#include "SPN.h"
+#include "SPN-1-0.h"
+#include <iomanip>
 
 using namespace std;
 
@@ -43,8 +44,9 @@ SPN::SPN(int nr) {
 }
 
 /*
-	// Destructor
-	// Delete all data members that are dynamically allocated of the SPN object
+// Destructor
+// Delete all data members that are dynamically allocated of the SPN object
+
 */
 SPN::~SPN() {
 // Destroy key
@@ -109,28 +111,56 @@ void SPN::pi_P(const unsigned char* input, unsigned char permuted[], bool encryp
 
 // XOR operation
 void SPN::operation_XOR(const unsigned char* input, unsigned char XORed[],
-				   int numSubkey) {
+						int numSubkey) {
 	for (int i = 0; i < BLOCK_LEN; i++) {
 		XORed[i] = input[i] ^ subkeys[numSubkey][i];
 	}
 }
 
-/* ENCRYPTION
- *
+/***************************************************
+ * ENCRYPTION
+ ***************************************************
  * Encrypt a string plaintext
-*/
-unsigned char* SPN::encrypt(const string plaintext){
+ */
+unsigned char* SPN::encrypt_ECB_mode(const unsigned char plaintext[], int len){
 	int currIndex = 0;
-	
-	// Prepare input string
-	int n = plaintext.length();
-	int numSubInput = (int) (n / BLOCK_LEN); 
-	if (n % BLOCK_LEN != 0) { numSubInput++; }
 
-	unsigned char input[numSubInput][BLOCK_LEN];	
-	prepare_string_ECB_mode(plaintext, input, numSubInput);
+	// Prepare input string
+	int numSubInput = (int) (len / BLOCK_LEN); 
+	if (len % BLOCK_LEN != 0) { numSubInput++; }
+//	unsigned char input[numSubInput][BLOCK_LEN]; // somehow this doesn't work in testing image. possibly because the image is too big
+	unsigned char **input;
+	input = new unsigned char*[numSubInput];
+	for (int i = 0; i < numSubInput; i++) {
+		input[i] = new unsigned char[BLOCK_LEN];
+	}
+
+	prepare_string_ECB_mode(plaintext, input, len);
 	unsigned char* ciphertext = new unsigned char[numSubInput * BLOCK_LEN];
 	
+	for (int s = 0; s < numSubInput; s++) {
+		unsigned char* tmp = SPN_encrypt(input[s]);
+		
+		// Convert the result back to type string and copy to ciphertext string
+		for (int i = 0; i < BLOCK_LEN; i++) {
+			ciphertext[currIndex] =  tmp[i];
+			currIndex++;
+		}
+
+		delete [] tmp;
+	}
+
+	for (int i = 0; i < numSubInput; i++) {
+		delete [] input[i];
+	}
+	delete [] input;
+
+	return ciphertext;
+}
+
+// Encrypt Algorithm
+unsigned char* SPN::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
+	unsigned char* ciphertext = new unsigned char[BLOCK_LEN];
 	
 	// SPN MAIN ALGORITHM
 	unsigned char *XORed, *substituted, *permuted;
@@ -138,157 +168,117 @@ unsigned char* SPN::encrypt(const string plaintext){
 	substituted = new unsigned char[BLOCK_LEN];
 	permuted = new unsigned char[BLOCK_LEN];
 
-	for (int s = 0; s < numSubInput; s++) {
-		cout << "\n => Encrypting subinput number " << s << ": \n" << endl;
-		// copy subinput input[s] to permuted as pre-round
-		for (int i = 0; i < BLOCK_LEN; i++) {
-			permuted[i] = input[s][i];
-		}
-
-		// run through the encryption rounds
-		for (int r = 0; r < numRounds - 1; r++) {
-			// XOR result of last round with corresponding subkey of current round
-			cout << "XORed_" << r << ": ";
-			operation_XOR(permuted, XORed, r);
-			printArray(XORed, BLOCK_LEN);
-			cout << endl;
-
-			// Substitution Pi_S()
-			cout << "subs_" << r << ": ";
-			pi_S(XORed, substituted);
-			printArray(substituted, BLOCK_LEN);
-			cout << endl;
-			
-			// Permutation Pi_P()
-			cout << "perm_" << r << ": ";
-			pi_P(substituted, permuted, true); // bool encrypt for pi_P is true
-			printArray(permuted, BLOCK_LEN);
-			cout << endl;
-			
-			cout << "--------------------------------------------------" << endl;
-		}
-		// the last round does not permute the result, only XOR and pi_S()
-		cout << "XORed_" << numRounds - 1 << ": ";
-		operation_XOR(permuted, XORed, numRounds - 1);
-		printArray(XORed, BLOCK_LEN);
-		cout << endl;
-
-		cout << "subs_" << numRounds - 1 << ": ";
-		pi_S(XORed, substituted);
-		printArray(substituted, BLOCK_LEN);
-		cout << endl;
-
-		// Output whitening using the last subkey. Recall that we produce
-		// (numRounds + 1) subkeys. The first (numRounds) subkeys have been used.
-		cout << "Whitening: ";
-		operation_XOR(substituted, XORed, numRounds);
-		printArray(XORed, BLOCK_LEN);
-		cout << endl;
-		cout << "--------------------------------------------------" << endl;
-		// Convert the result back to type string and copy to ciphertext string
-		for (int i = 0; i < BLOCK_LEN; i++) {
-			ciphertext[currIndex] =  XORed[i];
-			currIndex++;
-		}
+	// copy subinput input[s] to permuted as pre-round
+	for (int i = 0; i < BLOCK_LEN; i++) {
+		permuted[i] = in[i];
 	}
+
+	// run through the encryption rounds
+	for (int r = 0; r < numRounds - 1; r++) {
+		// XOR result of last round with corresponding subkey of current round
+		operation_XOR(permuted, XORed, r);
+
+		// Substitution Pi_S()
+		pi_S(XORed, substituted);
+			
+		// Permutation Pi_P()
+		pi_P(substituted, permuted, PERMUTATION_ENCRYPT_MODE);
+	}
+	// the last round does not permute the result, only XOR and pi_S()
+	operation_XOR(permuted, XORed, numRounds - 1);
+	pi_S(XORed, substituted);
+
+	// Output whitening using the last subkey. Recall that we produce
+	// (numRounds + 1) subkeys. The first (numRounds) subkeys have been used.
+	operation_XOR(substituted, ciphertext, numRounds);
 
 	// destroy intermediate step's materials
 	delete [] XORed;
 	delete [] substituted;
 	delete [] permuted;
 
-	cout << "----------------- PLAINTEXT  ---------------------" << endl;
-	for (int i = 0; i < numSubInput; i++) {
-		printArray(input[i], BLOCK_LEN);
-	}
-	cout << "= " << plaintext << endl;
-
-	cout << "----------------- CIPHERTEXT ---------------------" << endl;
-	printArray(ciphertext, numSubInput * BLOCK_LEN);
-	cout << endl;
-
 	return ciphertext;
 }
 
-/* DECRYPTION
- *
+/***************************************************
+ * DECRYPTION
+ ***************************************************
  * Decrypt an array of encrypted ciphertext characters in hexa form
  */
-string SPN::decrypt(const unsigned char ciphertext[], const int len) {
+unsigned char* SPN::decrypt_ECB_mode(const unsigned char ciphertext[], int len) {
 	int numSubInput = (int) len / BLOCK_LEN;
-	unsigned char input[numSubInput][BLOCK_LEN];
-	int currIndex = 0, row = 0;
-	static string plaintext;
-	plaintext.resize(len);
+	unsigned char* plaintext = new unsigned char[len];
 
-	// Divide ciphertext array into <numSubInput> subinputs
-	for (int i = 0; i < len; i++) {
-		if (i % BLOCK_LEN == 0) { currIndex = 0; }
-		else { currIndex++;	}
-		row = (int) i / BLOCK_LEN;
-		input[row][currIndex] = ciphertext[i];
+	// Prepare input ciphertext
+//	unsigned char input[numSubInput][BLOCK_LEN]; // somehow this doesn't work in testing image. possibly because the image is too big
+	unsigned char **input;
+	input = new unsigned char*[numSubInput];
+	for (int i = 0; i < numSubInput; i++) {
+		input[i] = new unsigned char[BLOCK_LEN];
 	}
 
+	prepare_string_ECB_mode(ciphertext, input, len);
+	
 	// Decryption
-	currIndex = 0;
+	int currIndex = 0;
+
+	for (int s = 0; s < numSubInput; s++) {
+		unsigned char* tmp = SPN_decrypt(input[s]);
+		
+		// Convert the result back to type string and copy to ciphertext string
+		for (int i = 0; i < BLOCK_LEN; i++) {
+			plaintext[currIndex] =  (char) ((int) tmp[i]);
+			currIndex++;
+		}
+
+		delete [] tmp;
+	}
+
+	for (int i = 0; i < numSubInput; i++) {
+		delete [] input[i];
+	}
+	delete [] input;
+
+	return plaintext;
+}
+
+// Decryption Algorithm
+unsigned char* SPN::SPN_decrypt(const unsigned char in[BLOCK_LEN]) {
+	unsigned char* plaintext = new unsigned char[BLOCK_LEN];
+	
 	unsigned char *XORed, *substituted, *permuted;
 	XORed = new unsigned char[BLOCK_LEN];
 	substituted = new unsigned char[BLOCK_LEN];
 	permuted = new unsigned char[BLOCK_LEN];
 
-	for (int s = 0; s < numSubInput; s++) {
-		cout << "\n => Decrypting subinput number " << s << ": \n" << endl;
-		// copy subinput input[s] to permuted as pre-round
-		for (int i = 0; i < BLOCK_LEN; i++) {
-			permuted[i] = input[s][i];
-		}
+	// copy subinput input[s] to permuted as pre-round
+	for (int i = 0; i < BLOCK_LEN; i++) {
+		permuted[i] = in[i];
+	}
 
-		// De-whitening
+	// De-whitening
+	operation_XOR(permuted, XORed, numRounds);
+
+	// Unwind the last pi_S() and XOR
+	pi_S(XORed, substituted);
+	operation_XOR(substituted, XORed, numRounds - 1);
+
+	// run through the decryption rounds
+	for (int r = numRounds - 2; r > -1; r--) {
 		cout << "--------------------------------------------------" << endl;
-		cout << "De-Whitening: ";
-		operation_XOR(permuted, XORed, numRounds);
-		printArray(XORed, BLOCK_LEN);
-		cout << endl;
 
-		// Unwind the last pi_S() and XOR
-		cout << "subs_" << numRounds - 1 << ": ";
-		pi_S(XORed, substituted);
-		printArray(substituted, BLOCK_LEN);
-		cout << endl;
+		// Unwind Permutation Pi_P()
+		pi_P(XORed, permuted, PERMUTATION_DECRYPT_MODE); // bool encrypt is false
 
-		cout << "XORed_" << numRounds - 1 << ": ";
-		operation_XOR(substituted, XORed, numRounds - 1);
-		printArray(XORed, BLOCK_LEN);
-		cout << endl;
-
-		// run through the decryption rounds
-		for (int r = numRounds - 2; r > -1; r--) {
-			cout << "--------------------------------------------------" << endl;
-
-			// Unwind Permutation Pi_P()
-			cout << "perm_" << r << ": ";
-			pi_P(XORed, permuted, false); // bool encrypt is false
-			printArray(permuted, BLOCK_LEN);
-			cout << endl;
-
-			// Unwind Substitution Pi_S()
-			cout << "subs_" << r << ": ";
-			pi_S(permuted, substituted);
-			printArray(substituted, BLOCK_LEN);
-			cout << endl;
+		// Unwind Substitution Pi_S()
+		pi_S(permuted, substituted);
 			
-			// Unwind XOR of last round with corresponding subkey of current round
-			cout << "XORed_" << r << ": ";
-			operation_XOR(substituted, XORed, r);
-			printArray(XORed, BLOCK_LEN);
-			cout << endl;
-		}
+		// Unwind XOR of last round with corresponding subkey of current round
+		operation_XOR(substituted, XORed, r);
+	}
 
-		// Convert the result back to type string and copy to ciphertext string
-		for (int i = 0; i < BLOCK_LEN; i++) {
-			plaintext[currIndex] =  (char) ((int) XORed[i]);
-			currIndex++;
-		}
+	for (int i = 0; i < BLOCK_LEN; i++) {
+		plaintext[i] = XORed[i];
 	}
 
 	// destroy intermediate step's materials
@@ -296,25 +286,16 @@ string SPN::decrypt(const unsigned char ciphertext[], const int len) {
 	delete [] substituted;
 	delete [] permuted;
 
-	cout << "----------------- CIPHERTEXT ---------------------" << endl;
-	printArray(ciphertext, len);
-	cout << endl;
-
-	cout << "----------------- PLAINTEXT  ---------------------" << endl;
-	for (int i = 0; i < plaintext.length(); i++) {
-		cout << hex << (int) plaintext[i] << " ";
-	}
-	cout << "= " << plaintext << endl;
-
-
 	return plaintext;
-}	
+}
 
 
+//**************************************************
 // Permutation matrix generator for pi_P()
+//**************************************************
 void SPN::generate_permutation_matrix() {
 	srand(time(NULL));
-	int row = 0;
+	int row = rand() % BLOCK_LEN;
 	bool flag[BLOCK_LEN] = {false}; // flag to know what columns already have a 1
 
 	for (int i = 0; i < BLOCK_LEN; i++) {
@@ -329,7 +310,7 @@ void SPN::generate_permutation_matrix() {
 	for (int i = 0; i < BLOCK_LEN; i++) {
 		row = rand() % BLOCK_LEN;
 		// if there's already a 1 on the current row, keep running rand()
-		while (flag[row] || row == i) { 
+		while (flag[row] == true) { 
 			row = rand() % BLOCK_LEN;
 		}
 		flag[row] = true;
@@ -355,24 +336,42 @@ void SPN::generate_permutation_matrix() {
 	}
 }
 
-// Input processor: Turn string input into a 2D array of BLOCK_LEN substrings
-void SPN::prepare_string_ECB_mode(string input,
-							   unsigned char in[][BLOCK_LEN], int numSubInput) {
-	int n = input.length();
+//**************************************************
+// Input processor: Turn array input into a 2D array of BLOCK_LEN sub-arrays
+//**************************************************
+void SPN::prepare_string_ECB_mode(const unsigned char input[],
+								  unsigned char in[][BLOCK_LEN], int len) {
 	int row = 0, currIndex = 0;
-
+	
 	// Process string input into unsigned char array for encryption; 
-
-	for (int i = 0; i < n; i++) {
+	for (int i = 0; i < len; i++) {
 		if (i % BLOCK_LEN == 0) { currIndex = 0; }
 		else { currIndex++;	}
 		row = (int) i / BLOCK_LEN;
-		in[row][currIndex] = (unsigned char) input[i];
+		in[row][currIndex] = input[i];
 	}
 	// Pad the last substring with 0's if needed
-	if (n % BLOCK_LEN != 0) {
-		for (int i = n % BLOCK_LEN; i < BLOCK_LEN; i++) { 
-			in[numSubInput - 1][i] = (unsigned char) 0;
+	if (len % BLOCK_LEN != 0) {
+		for (int i = len % BLOCK_LEN; i < BLOCK_LEN; i++) { 
+			in[(int) len / BLOCK_LEN][i] = (unsigned char) 0;
+		}
+	}
+}
+void SPN::prepare_string_ECB_mode(const unsigned char input[],
+								  unsigned char **in, int len) {
+	int row = 0, currIndex = 0;
+	
+	// Process string input into unsigned char array for encryption; 
+	for (int i = 0; i < len; i++) {
+		if (i % BLOCK_LEN == 0) { currIndex = 0; }
+		else { currIndex++;	}
+		row = (int) i / BLOCK_LEN;
+		in[row][currIndex] = input[i];
+	}
+	// Pad the last substring with 0's if needed
+	if (len % BLOCK_LEN != 0) {
+		for (int i = len % BLOCK_LEN; i < BLOCK_LEN; i++) { 
+			in[(int) len / BLOCK_LEN][i] = (unsigned char) 0;
 		}
 	}
 }
@@ -380,6 +379,6 @@ void SPN::prepare_string_ECB_mode(string input,
 // print an unsigned char array as hexadecimal values
 void SPN::printArray(const unsigned char in[], int len) {
 	for (int i = 0; i < len; i++) {
-		cout << hex << (int) in[i] << " ";
+		cout << hex << setw(4) << (int) in[i];
 	}
 }

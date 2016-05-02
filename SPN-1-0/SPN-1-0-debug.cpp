@@ -1,18 +1,18 @@
 /* SPN.cpp
  *
- * Implementation of a simple substitution-permutation network.
+ * Implementation of a simple substitution-permutation network. DEBUG version that dumps out intermediate values.
  *
  * Created by Khoa Nguyen on 03/16/2016.
  */
 
-#include "SPN-1-0.h"
+#include "SPN-1-0-debug.h"
 #include <iomanip>
 
 using namespace std;
 
 
 // Default constructor: Random key, min# of rounds = 4
-SPN::SPN(int nr) {
+SPN_Debug::SPN_Debug(int nr) {
     // Make sure number of rounds >= 4
 	if (nr < 4) {
 		numRounds = 4;
@@ -47,7 +47,7 @@ SPN::SPN(int nr) {
 // Destructor
 // Delete all data members that are dynamically allocated of the SPN object
 */
-SPN::~SPN() {
+SPN_Debug::~SPN_Debug() {
 // Destroy key
 	delete [] key;
 	
@@ -59,7 +59,7 @@ SPN::~SPN() {
 }
 
 // Key schedule: A simple function for the key schedule is that for subkey of round r, subkey K_r is a copy of the original key starting from byte 3i + 1, wrapped around if necessary. This is not a secure way to generate key in practice. It's good to demonstrate linear cryptanalysis, however.
-void SPN::generate_subkeys() {
+void SPN_Debug::generate_subkeys() {
 	subkeys = new unsigned char*[numRounds + 1];
 	for (int i = 0; i < numRounds + 1; ++i) {
 		subkeys[i] = new unsigned char[BLOCK_LEN];
@@ -77,7 +77,7 @@ void SPN::generate_subkeys() {
  * Post: a block of output characters of length BLOCK_LEN, each of which is the result of mapping the corresponding input character through the substitution function
  * Note: Substitution pi_S(): A simple function for substitution is to use the bit-flipped version of each input[i]. For example,  0000 0001 (0x01) becomes 1111 1110 (FE) (bit flipped). This can be improved greatly by using GF(2^8) and maximum-distance-separable (MDS) matrix.
  */
-void SPN::pi_S(const unsigned char* input, unsigned char substituted[]) {
+void SPN_Debug::pi_S(const unsigned char* input, unsigned char substituted[]) {
 	for (int i = 0; i < BLOCK_LEN; i++) {
 		substituted[i] = ~input[i];
 	}
@@ -89,7 +89,7 @@ void SPN::pi_S(const unsigned char* input, unsigned char substituted[]) {
  * Post: the characters in input have changed places with each other per the permutation function (which is to consider the input as a vector of length BLOCK_LEN, and then multiply it with a square matrix whose columns are the standard basis vectors e_1, e_2,..., e_{BLOCK_LEN} in some permuted order). 
  *
  */
-void SPN::pi_P(const unsigned char* input, unsigned char permuted[], bool encrypt) {
+void SPN_Debug::pi_P(const unsigned char* input, unsigned char permuted[], bool encrypt) {
 	// Do the permutation as a matrix-vector multiplication 
 	int sum;
 	for (int i = 0; i < BLOCK_LEN; i++) {
@@ -109,7 +109,7 @@ void SPN::pi_P(const unsigned char* input, unsigned char permuted[], bool encryp
 }
 
 // XOR operation
-void SPN::operation_XOR(const unsigned char* input, unsigned char XORed[],
+void SPN_Debug::operation_XOR(const unsigned char* input, unsigned char XORed[],
 						int numSubkey) {
 	for (int i = 0; i < BLOCK_LEN; i++) {
 		XORed[i] = input[i] ^ subkeys[numSubkey][i];
@@ -121,7 +121,7 @@ void SPN::operation_XOR(const unsigned char* input, unsigned char XORed[],
  ***************************************************
  * Encrypt a string plaintext
  */
-unsigned char* SPN::encrypt_ECB_mode(const unsigned char plaintext[], int len){
+unsigned char* SPN_Debug::encrypt_ECB_mode(const unsigned char plaintext[], int len){
 	int currIndex = 0;
 	
 	// Prepare input string
@@ -160,7 +160,7 @@ unsigned char* SPN::encrypt_ECB_mode(const unsigned char plaintext[], int len){
 }
 
 // Encrypt Algorithm
-unsigned char* SPN::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
+unsigned char* SPN_Debug::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
 	unsigned char* ciphertext = new unsigned char[BLOCK_LEN];
 	
 	// SPN MAIN ALGORITHM
@@ -190,7 +190,7 @@ unsigned char* SPN::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
 			
 		// Permutation Pi_P()
 		cout << "perm_" << r << ":\t";
-		pi_P(substituted, permuted, true); // bool encrypt for pi_P is true
+		pi_P(substituted, permuted, PERMUTATION_ENCRYPT_MODE);
 		printArray(permuted, BLOCK_LEN);
 		cout << endl;
 			
@@ -228,7 +228,7 @@ unsigned char* SPN::SPN_encrypt(const unsigned char in[BLOCK_LEN]) {
  ***************************************************
  * Decrypt an array of encrypted ciphertext characters in hexa form
  */
-unsigned char* SPN::decrypt_ECB_mode(const unsigned char ciphertext[], int len) {
+unsigned char* SPN_Debug::decrypt_ECB_mode(const unsigned char ciphertext[], int len) {
 	int numSubInput = (int) len / BLOCK_LEN;
 	unsigned char* plaintext = new unsigned char[len];
 
@@ -268,7 +268,7 @@ unsigned char* SPN::decrypt_ECB_mode(const unsigned char ciphertext[], int len) 
 }
 
 // Decryption Algorithm
-unsigned char* SPN::SPN_decrypt(const unsigned char in[BLOCK_LEN]) {
+unsigned char* SPN_Debug::SPN_decrypt(const unsigned char in[BLOCK_LEN]) {
 	unsigned char* plaintext = new unsigned char[BLOCK_LEN];
 	
 	unsigned char *XORed, *substituted, *permuted;
@@ -305,7 +305,7 @@ unsigned char* SPN::SPN_decrypt(const unsigned char in[BLOCK_LEN]) {
 
 		// Unwind Permutation Pi_P()
 		cout << "perm_" << r << ":\t";
-		pi_P(XORed, permuted, false); // bool encrypt is false
+		pi_P(XORed, permuted, PERMUTATION_DECRYPT_MODE); // bool encrypt is false
 		printArray(permuted, BLOCK_LEN);
 		cout << endl;
 
@@ -339,7 +339,7 @@ unsigned char* SPN::SPN_decrypt(const unsigned char in[BLOCK_LEN]) {
 //**************************************************
 // Permutation matrix generator for pi_P()
 //**************************************************
-void SPN::generate_permutation_matrix() {
+void SPN_Debug::generate_permutation_matrix() {
 	srand(time(NULL));
 	int row = 0;
 	bool flag[BLOCK_LEN] = {false}; // flag to know what columns already have a 1
@@ -385,7 +385,7 @@ void SPN::generate_permutation_matrix() {
 //**************************************************
 // Input processor: Turn array input into a 2D array of BLOCK_LEN sub-arrays
 //**************************************************
-void SPN::prepare_string_ECB_mode(const unsigned char input[],
+void SPN_Debug::prepare_string_ECB_mode(const unsigned char input[],
 								  unsigned char in[][BLOCK_LEN], int len) {
 	int row = 0, currIndex = 0;
 	
@@ -405,7 +405,7 @@ void SPN::prepare_string_ECB_mode(const unsigned char input[],
 }
 
 // print an unsigned char array as hexadecimal values
-void SPN::printArray(const unsigned char in[], int len) {
+void SPN_Debug::printArray(const unsigned char in[], int len) {
 	for (int i = 0; i < len; i++) {
 		cout << hex << setw(4) << (int) in[i];
 	}
